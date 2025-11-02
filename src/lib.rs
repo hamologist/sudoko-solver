@@ -87,96 +87,62 @@ pub enum SolverErrors {
     UnsolvableBoardError,
 }
 
-fn row_check(solved_board: &SolvedBoard, row_index: usize) -> Result<(), (usize, usize)> {
+fn row_check(solved_board: &SolvedBoard, row_index: usize) -> bool {
     let mut checker: HashSet<i32> = HashSet::new();
 
-    for (col_index, val) in solved_board[row_index].iter().enumerate() {
+    for val in solved_board[row_index].iter() {
+        if *val == 0 {
+            return true;
+        }
         if checker.contains(val) {
-            return Err((row_index, col_index));
+            return false;
         }
         checker.insert(*val);
     }
-    return Ok(());
+    return true;
 }
 
-fn col_check(solved_board: &SolvedBoard, col_index: usize) -> Result<(), (usize, usize)> {
+fn col_check(solved_board: &SolvedBoard, col_index: usize) -> bool {
     let mut checker: HashSet<i32> = HashSet::new();
 
     for row_index in 0..9 {
+        if solved_board[row_index][col_index] == 0 {
+            return true;
+        }
         if checker.contains(&solved_board[row_index][col_index]) {
-            return Err((row_index, col_index));
+            return false;
         }
         checker.insert(solved_board[row_index][col_index]);
     }
-    return Ok(());
+    return true;
 }
 
 fn block_check(
     solved_board: &SolvedBoard,
     block_row_index: usize,
     block_col_index: usize,
-) -> Result<(), (usize, usize)> {
+) -> bool {
     let mut checker: HashSet<i32> = HashSet::new();
 
     for cell_row_index in 0..3 {
         for cell_col_index in 0..3 {
             let row_index = block_row_index * 3 + cell_row_index;
             let col_index = block_col_index * 3 + cell_col_index;
+            if solved_board[row_index][col_index] == 0 {
+                return true;
+            }
             if checker.contains(&solved_board[row_index][col_index]) {
-                return Err((row_index, col_index));
+                return false;
             }
             checker.insert(solved_board[row_index][col_index]);
         }
     }
-    return Ok(());
-}
-
-fn is_board_solved(solved_board: &SolvedBoard) -> Result<(), (usize, usize)> {
-    let mut checker: HashSet<i32> = HashSet::new();
-
-    for (row_index, row) in solved_board.iter().enumerate() {
-        checker.clear();
-        for (col_index, val) in row.iter().enumerate() {
-            if checker.contains(val) {
-                return Err((row_index, col_index));
-            }
-            checker.insert(*val);
-        }
-    }
-
-    for col_index in 0..9 {
-        checker.clear();
-        for row_index in 0..9 {
-            if checker.contains(&solved_board[row_index][col_index]) {
-                return Err((row_index, col_index));
-            }
-            checker.insert(solved_board[row_index][col_index]);
-        }
-    }
-
-    for block_row_index in 0..3 {
-        for block_col_index in 0..3 {
-            checker.clear();
-            for cell_row_index in 0..3 {
-                for cell_col_index in 0..3 {
-                    let row_index = block_row_index * 3 + cell_row_index;
-                    let col_index = block_col_index * 3 + cell_col_index;
-                    if checker.contains(&solved_board[row_index][col_index]) {
-                        return Err((row_index, col_index));
-                    }
-                    checker.insert(solved_board[row_index][col_index]);
-                }
-            }
-        }
-    }
-
-    return Ok(());
+    return true;
 }
 
 enum InProgressErrors {
     Proceed,
     UnsolvableBoardError,
-    CollisionError((usize, usize)),
 }
 
 impl Solver {
@@ -192,28 +158,10 @@ impl Solver {
             col_index: usize,
         ) -> Result<(), InProgressErrors> {
             if row_index >= 9 {
-                match block_check(ctx.result, 2, 2) {
-                    Ok(_) => return Ok(()),
-                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
-                };
+                return Ok(());
             }
             if col_index >= 9 {
-                match row_check(ctx.result, row_index) {
-                    Ok(_) => return inner(ctx, row_index + 1, 0),
-                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
-                };
-            }
-            if row_index == 8 && col_index > 0 {
-                match col_check(ctx.result, col_index - 1) {
-                    Ok(_) => {}
-                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
-                };
-            }
-            if row_index > 0 && col_index > 0 && row_index % 3 == 0 && col_index % 3 == 0 {
-                match block_check(ctx.result, (row_index - 1) / 3, (col_index - 1) / 3) {
-                    Ok(_) => {}
-                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
-                }
+                return inner(ctx, row_index + 1, 0);
             }
 
             let cell_moves = match &ctx.possible_moves[row_index][col_index] {
@@ -231,6 +179,29 @@ impl Solver {
 
             for cell_move in cell_moves {
                 ctx.result[row_index][col_index] = *cell_move;
+
+                match row_check(ctx.result, row_index) {
+                    true => {},
+                    false => {
+                        ctx.result[row_index][col_index] = 0;
+                        continue;
+                    }
+                };
+                match col_check(ctx.result, col_index) {
+                    true => {}
+                    false => {
+                        ctx.result[row_index][col_index] = 0;
+                        continue;
+                    }
+                };
+                match block_check(ctx.result, row_index / 3, col_index / 3) {
+                    true => {}
+                    false => {
+                        ctx.result[row_index][col_index] = 0;
+                        continue;
+                    }
+                }
+
                 match inner(ctx, row_index, col_index + 1) {
                     Ok(solved) => return Ok(solved),
                     Err(err) => match err {
@@ -238,26 +209,11 @@ impl Solver {
                         InProgressErrors::UnsolvableBoardError => {
                             return Err(InProgressErrors::UnsolvableBoardError);
                         }
-                        InProgressErrors::CollisionError((
-                            collision_row_index,
-                            collision_col_index,
-                        )) => {
-                            if row_index > collision_row_index {
-                                return Err(InProgressErrors::CollisionError((
-                                    collision_row_index,
-                                    collision_col_index,
-                                )));
-                            } else if col_index > collision_col_index {
-                                return Err(InProgressErrors::CollisionError((
-                                    collision_row_index,
-                                    collision_col_index,
-                                )));
-                            }
-                        }
                     },
                 }
             }
 
+            ctx.result[row_index][col_index] = 0;
             return Err(InProgressErrors::Proceed);
         }
 
@@ -279,9 +235,9 @@ impl Solver {
     pub fn solve(&self) -> Result<SolvedBoard, SolverErrors> {
         let possible_moves = PossibleMovesBuilder::from_board(&self.board).build();
 
-        return match self._solve(&possible_moves) {
+        match self._solve(&possible_moves) {
             Some(result) => Ok(result),
             None => Err(SolverErrors::UnsolvableBoardError),
-        };
+        }
     }
 }

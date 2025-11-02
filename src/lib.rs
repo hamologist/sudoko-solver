@@ -87,6 +87,50 @@ pub enum SolverErrors {
     UnsolvableBoardError,
 }
 
+fn row_check(solved_board: &SolvedBoard, row_index: usize) -> Result<(), (usize, usize)> {
+    let mut checker: HashSet<i32> = HashSet::new();
+
+    for (col_index, val) in solved_board[row_index].iter().enumerate() {
+        if checker.contains(val) {
+            return Err((row_index, col_index));
+        }
+        checker.insert(*val);
+    }
+    return Ok(());
+}
+
+fn col_check(solved_board: &SolvedBoard, col_index: usize) -> Result<(), (usize, usize)> {
+    let mut checker: HashSet<i32> = HashSet::new();
+
+    for row_index in 0..9 {
+        if checker.contains(&solved_board[row_index][col_index]) {
+            return Err((row_index, col_index));
+        }
+        checker.insert(solved_board[row_index][col_index]);
+    }
+    return Ok(());
+}
+
+fn block_check(
+    solved_board: &SolvedBoard,
+    block_row_index: usize,
+    block_col_index: usize,
+) -> Result<(), (usize, usize)> {
+    let mut checker: HashSet<i32> = HashSet::new();
+
+    for cell_row_index in 0..3 {
+        for cell_col_index in 0..3 {
+            let row_index = block_row_index * 3 + cell_row_index;
+            let col_index = block_col_index * 3 + cell_col_index;
+            if checker.contains(&solved_board[row_index][col_index]) {
+                return Err((row_index, col_index));
+            }
+            checker.insert(solved_board[row_index][col_index]);
+        }
+    }
+    return Ok(());
+}
+
 fn is_board_solved(solved_board: &SolvedBoard) -> Result<(), (usize, usize)> {
     let mut checker: HashSet<i32> = HashSet::new();
 
@@ -146,27 +190,44 @@ impl Solver {
             ctx: &mut Context,
             row_index: usize,
             col_index: usize,
-        ) -> Result<SolvedBoard, InProgressErrors> {
+        ) -> Result<(), InProgressErrors> {
             if row_index >= 9 {
-                match is_board_solved(ctx.result) {
-                    Ok(_) => return Ok(*ctx.result),
+                match block_check(ctx.result, 2, 2) {
+                    Ok(_) => return Ok(()),
                     Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
                 };
             }
             if col_index >= 9 {
-                return inner(ctx, row_index + 1, 0);
+                match row_check(ctx.result, row_index) {
+                    Ok(_) => return inner(ctx, row_index + 1, 0),
+                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
+                };
+            }
+            if row_index == 8 && col_index > 0 {
+                match col_check(ctx.result, col_index - 1) {
+                    Ok(_) => {}
+                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
+                };
+            }
+            if row_index > 0 && col_index > 0 && row_index % 3 == 0 && col_index % 3 == 0 {
+                match block_check(ctx.result, (row_index - 1) / 3, (col_index - 1) / 3) {
+                    Ok(_) => {}
+                    Err(indexes) => return Err(InProgressErrors::CollisionError(indexes)),
+                }
             }
 
             let cell_moves = match &ctx.possible_moves[row_index][col_index] {
-                PossibleMovesCell::Unknown(cell_moves) => cell_moves,
+                PossibleMovesCell::Unknown(cell_moves) => {
+                    if cell_moves.len() == 0 {
+                        return Err(InProgressErrors::UnsolvableBoardError);
+                    }
+                    cell_moves
+                }
                 PossibleMovesCell::Solved(val) => {
                     ctx.result[row_index][col_index] = *val;
                     return inner(ctx, row_index, col_index + 1);
                 }
             };
-            if cell_moves.len() == 0 {
-                return Err(InProgressErrors::UnsolvableBoardError);
-            }
 
             for cell_move in cell_moves {
                 ctx.result[row_index][col_index] = *cell_move;
@@ -210,7 +271,7 @@ impl Solver {
             0,
             0,
         ) {
-            Ok(val) => Some(val),
+            Ok(_) => Some(result),
             Err(_) => None,
         };
     }

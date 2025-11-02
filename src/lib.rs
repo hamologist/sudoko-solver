@@ -1,11 +1,38 @@
 use std::collections::HashSet;
 use std::sync::LazyLock;
+use serde_json::json;
 
 static ALL_POSSIBLE_MOVES: LazyLock<HashSet<i32>> =
     LazyLock::new(|| HashSet::from([1, 2, 3, 4, 5, 6, 7, 8, 9]));
 
 pub type Board = [[Option<i32>; 9]; 9];
 pub type SolvedBoard = [[i32; 9]; 9];
+
+pub trait Outputer {
+    fn to_csv(&self) -> String;
+    fn to_json(&self) -> String;
+}
+
+impl Outputer for SolvedBoard {
+    fn to_csv(&self) -> String {
+        let mut result = Vec::<String>::new();
+        for row in self.iter() {
+            result.push(row
+                .iter()
+                .map(|val| val.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+            );
+        }
+
+        return result.join("\n");
+    }
+    fn to_json(&self) -> String {
+        return json!({
+            "solution": self,
+        }).to_string();
+    }
+}
 
 #[derive(Debug)]
 enum PossibleMovesCell {
@@ -87,6 +114,15 @@ pub enum SolverErrors {
     UnsolvableBoardError,
 }
 
+impl SolverErrors {
+    pub fn to_string(&self) -> String {
+        match self {
+            SolverErrors::UnsolvableBoardError =>
+                format!("Provided board is not solvable."),
+        }
+    }
+}
+
 fn row_check(solved_board: &SolvedBoard, row_index: usize) -> bool {
     let mut checker: HashSet<i32> = HashSet::new();
 
@@ -145,7 +181,88 @@ enum InProgressErrors {
     UnsolvableBoardError,
 }
 
+pub enum FromCSVErrs {
+    InvalidElement { element: String },
+    TooFewItemsInLine { line: i32 },
+    TooManyItemsInLine { line: i32 },
+    TooFewLines,
+    TooManyLines,
+}
+
+impl FromCSVErrs {
+    pub fn to_string(&self) -> String {
+        match self {
+            FromCSVErrs::InvalidElement { element } =>
+                format!("Invalid element in the provided CSV: \"{}\".", element),
+            FromCSVErrs::TooFewItemsInLine { line } =>
+                format!("Too few items at line number {}.", line),
+            FromCSVErrs::TooManyItemsInLine { line } =>
+                format!("Too many items at line number {}.", line),
+            FromCSVErrs::TooFewLines =>
+                format!("Too few lines in input, expected 9."),
+            FromCSVErrs::TooManyLines =>
+                format!("Too many lines in input, expected 9."),
+        }
+    }
+}
+
 impl Solver {
+    pub fn from_csv(input: &str) -> Result<Self, FromCSVErrs> {
+        let mut board: Board = core::array::from_fn(|_| {
+            core::array::from_fn(|_| None)
+        });
+
+        let mut line_index_tracker = 0;
+        for (line_index, line) in input.lines().enumerate() {
+            line_index_tracker = line_index;
+            let mut element_index_tracker = 0;
+            for (element_index, element) in line.split(",").enumerate() {
+                element_index_tracker = element_index;
+                if element_index >= 9 {
+                    return Err(FromCSVErrs::TooManyItemsInLine {
+                        line: line_index as i32 + 1,
+                    })
+                }
+
+                let trimmed = element.trim();
+                if trimmed == "?" {
+                    continue;
+                }
+
+                match trimmed.parse::<i32>() {
+                    Ok(val) => {
+                        if !ALL_POSSIBLE_MOVES.contains(&val) {
+                            return Err(FromCSVErrs::InvalidElement {
+                                element: val.to_string()
+                            });
+                        }
+
+                        board[line_index][element_index] = Some(val);
+                    }
+                    Err(_) => return Err(FromCSVErrs::InvalidElement {
+                        element: trimmed.to_string()
+                    }),
+                };
+            }
+
+            if element_index_tracker < 8 {
+                return Err(FromCSVErrs::TooFewItemsInLine {
+                    line: line_index as i32
+                });
+            }
+
+            if line_index >= 9 {
+                return Err(FromCSVErrs::TooManyLines);
+            }
+        }
+
+        if line_index_tracker < 8 {
+            return Err(FromCSVErrs::TooFewLines);
+        }
+
+        return Ok(Self { board });
+    }
+
     fn _solve(&self, possible_moves: &PossibleMoves) -> Option<SolvedBoard> {
         struct Context<'a> {
             possible_moves: &'a PossibleMoves,

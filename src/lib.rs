@@ -21,7 +21,7 @@ impl Outputer for SolvedBoard {
                 .iter()
                 .map(|val| val.to_string())
                 .collect::<Vec<_>>()
-                .join(", ")
+                .join(",")
             );
         }
 

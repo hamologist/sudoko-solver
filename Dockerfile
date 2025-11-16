@@ -4,6 +4,6 @@ WORKDIR /usr/src/app
 
 COPY . .
 
-RUN cargo install --path .
+RUN cargo install --path ./cli
 
 CMD [ "sh" ]

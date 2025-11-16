@@ -1,18 +1,21 @@
 # Sudoko Solver
 **Sudoko Solver** is a Rust project for solving Sudoko puzzles.
-The package currently includes a CLI frontend for running the puzzle solving logic.
+The package includes a CLI frontend for running the puzzle solving logic.
+The project also provides a library for interfacing the project with other Rust projects.
+Lastly, wasm support is included so the puzzle solving logic can be run on browser.
 
 ## Installation
 
 ### Local Installation
-You can install the package directly to your machine using cargo:
+You can install the CLI solver directly to your machine using cargo.
+
 ```bash
-$ cargo install --git https://github.com/hamologist/sudoko-solver.git --branch main
+$ cargo install --git https://github.com/hamologist/sudoko-solver.git --branch main sudoko-solver-cli
 ```
 
 Likewise, you can uninstall the application using:
 ```bash
-$ cargo uninstall sudoko-solver
+$ cargo uninstall sudoko-solver-cli
 ```
 
 ### Docker
@@ -78,4 +81,11 @@ The above will return the solved board (as a CSV):
 8,9,3,5,2,1,4,7,6
 5,2,4,7,6,9,8,1,3
 1,7,6,3,8,4,2,9,5
+```
+
+## Building the project for wasm
+For those interested in generating the project's wasm a `Makefile` is provided.
+Assuming you've already installed `wasm-bindgen` and `wasm-opt` you can generate a wasm `pkg` directory using:
+```bash
+make wasm
 ```

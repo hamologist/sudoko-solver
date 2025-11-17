@@ -4,6 +4,9 @@ The package includes a CLI frontend for running the puzzle solving logic.
 The project also provides a library for interfacing the project with other Rust projects.
 Lastly, wasm support is included so the puzzle solving logic can be run on browser.
 
+## Demo
+For those wanting to get a quick showcase of the project, a demo using the project wasm target can be found [here](https://www.hamologist.com/demos/sudoko-solver).
+
 ## Installation
 
 ### Local Installation

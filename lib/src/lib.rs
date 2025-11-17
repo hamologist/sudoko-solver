@@ -51,8 +51,16 @@ struct PossibleMovesBuilder<'a> {
     grid_checkers: CheckerCollection,
 }
 
-impl<'a> PossibleMovesBuilder<'a> {
-    fn from_board(board: &'a Board) -> Self {
+trait FromBoard<'a, T> {
+    fn from_board(board: &'a Board) -> T;
+}
+
+pub enum BuilderErrors {
+    UnsolvableBoardError,
+}
+
+impl<'a> FromBoard<'a, Result<PossibleMoves, BuilderErrors>> for PossibleMoves {
+    fn from_board(board: &'a Board) -> Result<PossibleMoves, BuilderErrors> {
         let mut row_checkers: CheckerCollection = core::array::from_fn(|_| HashSet::new());
         let mut col_checkers: CheckerCollection = core::array::from_fn(|_| HashSet::new());
         let mut grid_checkers: CheckerCollection = core::array::from_fn(|_| HashSet::new());
@@ -60,8 +68,19 @@ impl<'a> PossibleMovesBuilder<'a> {
             for (col_index, cell) in row.iter().enumerate() {
                 match cell {
                     Some(val) => {
+                        if row_checkers[row_index].contains(val) {
+                            return Err(BuilderErrors::UnsolvableBoardError);
+                        }
                         row_checkers[row_index].insert(*val);
+
+                        if col_checkers[col_index].contains(val) {
+                            return Err(BuilderErrors::UnsolvableBoardError);
+                        }
                         col_checkers[col_index].insert(*val);
+
+                        if grid_checkers[(3 * (row_index / 3)) + (col_index / 3)].contains(val) {
+                            return Err(BuilderErrors::UnsolvableBoardError);
+                        }
                         grid_checkers[(3 * (row_index / 3)) + (col_index / 3)].insert(*val);
                     }
                     None => {
@@ -71,14 +90,16 @@ impl<'a> PossibleMovesBuilder<'a> {
             }
         }
 
-        return PossibleMovesBuilder {
+        return Ok(PossibleMovesBuilder {
             board,
             row_checkers,
             col_checkers,
             grid_checkers,
-        };
+        }.build());
     }
+}
 
+impl<'a> PossibleMovesBuilder<'a> {
     fn build(&self) -> PossibleMoves {
         core::array::from_fn(|row_index| {
             core::array::from_fn(|col_index| match self.board[row_index][col_index] {
@@ -350,7 +371,12 @@ impl Solver {
     }
 
     pub fn solve(&self) -> Result<SolvedBoard, SolverErrors> {
-        let possible_moves = PossibleMovesBuilder::from_board(&self.board).build();
+        let possible_moves = match PossibleMoves::from_board(&self.board) {
+            Ok(val) => val,
+            Err(_) => {
+                return Err(SolverErrors::UnsolvableBoardError);
+            }
+        };
 
         match self._solve(&possible_moves) {
             Some(result) => Ok(result),
